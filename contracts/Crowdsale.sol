@@ -11,6 +11,7 @@ contract Crowdsale {
     uint256 public maxTokens;
     uint256 public tokensSold;
     address[] public white_list;
+    uint public unLockTime;
 
     event Buy(uint256 amount, address buyer);
     event Finalize(uint256 tokensSold, uint256 ethRaised);
@@ -18,13 +19,15 @@ contract Crowdsale {
     constructor(
         Token _token,
         uint256 _price,
-        uint256 _maxTokens
+        uint256 _maxTokens,
+        uint _unLockTime
     ) {
         owner = msg.sender;
         token = _token;
         price = _price;
         maxTokens = _maxTokens;
         white_list.push(msg.sender);
+        unLockTime = _unLockTime;
     }
 
     modifier onlyOwner() {
@@ -41,10 +44,11 @@ contract Crowdsale {
     }
 
     function buyTokens(uint256 _amount) public payable {
-        require(isInWhiteList(msg.sender));
+        require(isInWhiteList(msg.sender), "You are not in the white list");
+        require(block.timestamp >= unLockTime, "The sale is not unlocked yet");
         require(msg.value == (_amount / 1e18) * price);
-        require(token.balanceOf(address(this)) >= _amount);
-        require(token.transfer(msg.sender, _amount));
+        require(token.balanceOf(address(this)) >= _amount, "Not enough tokens left");
+        require(token.transfer(msg.sender, _amount), "Could not transfer tokens");
 
         tokensSold += _amount;
 

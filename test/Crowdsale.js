@@ -1,6 +1,9 @@
 const { expect } = require('chai');
 const { ethers } = require('hardhat');
 
+const oneWeekInSeconds = 60 * 60 * 24 * 7;
+
+
 const tokens = (n) => {
   return ethers.utils.parseUnits(n.toString(), 'ether')
 }
@@ -22,7 +25,10 @@ describe('Crowdsale', () => {
     user1 = accounts[1]
     user2 = accounts[2]
 
-    crowdsale = await Crowdsale.deploy(token.address, ether(1), '1000000')
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    
+    const nowPlusOneWeekInSeconds = nowInSeconds + oneWeekInSeconds;
+    crowdsale = await Crowdsale.deploy(token.address, ether(1), '1000000', nowPlusOneWeekInSeconds)
 
     let transaction = await token.connect(deployer).transfer(crowdsale.address, tokens(1000000))
     await transaction.wait()
@@ -42,7 +48,7 @@ describe('Crowdsale', () => {
       expect(await crowdsale.token()).to.equal(token.address)
     })
 
-    it('has deployer whitelisted', async () => {
+    it('is deployer whitelisted', async () => {
       expect(await crowdsale.isInWhiteList(deployer.address))
     })
 
@@ -61,13 +67,25 @@ describe('Crowdsale', () => {
 
     describe('Failure', () => {
 
-      it('rejects non-whitelist buy', async () => {
-        await expect(crowdsale.connect(user2).buyTokens(tokens(10), { value: 0 })).to.be.reverted
-      })
-
       it('prevents non-owner from updating whitelist', async () => {
         await expect(crowdsale.connect(user1).addToWhiteList(user2.address)).to.be.reverted
       })
+
+    })
+
+  })
+
+  describe('TimeLock', () => {
+    let transaction, result
+    let amount = tokens(10)
+
+    describe('Failure', () => {
+
+      it('prevents buying tokens before date', async () => {
+        await crowdsale.connect(deployer).addToWhiteList(user1.address);
+        await expect(crowdsale.connect(user1).buyTokens(amount, { value: ether(10) }))
+          .to.be.reverted;
+      });
 
     })
 
@@ -80,6 +98,8 @@ describe('Crowdsale', () => {
     describe('Success', () => {
 
       beforeEach(async () => {
+        await network.provider.send("evm_increaseTime", [oneWeekInSeconds-5]);
+        await network.provider.send("evm_mine");
         await crowdsale.connect(deployer).addToWhiteList(user1.address);
         transaction = await crowdsale.connect(user1).buyTokens(amount, { value: ether(10) })
         result = await transaction.wait()
@@ -106,6 +126,10 @@ describe('Crowdsale', () => {
 
       it('rejects insufficent ETH', async () => {
         await expect(crowdsale.connect(user1).buyTokens(tokens(10), { value: 0 })).to.be.reverted
+      })
+
+      it('rejects non-whitelist buy', async () => {
+        await expect(crowdsale.connect(user2).buyTokens(tokens(10), { value: 0 })).to.be.reverted
       })
 
     })
