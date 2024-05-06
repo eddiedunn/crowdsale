@@ -10,6 +10,7 @@ contract Crowdsale {
     uint256 public price;
     uint256 public maxTokens;
     uint256 public tokensSold;
+    address[] public white_list;
 
     event Buy(uint256 amount, address buyer);
     event Finalize(uint256 tokensSold, uint256 ethRaised);
@@ -23,6 +24,7 @@ contract Crowdsale {
         token = _token;
         price = _price;
         maxTokens = _maxTokens;
+        white_list.push(msg.sender);
     }
 
     modifier onlyOwner() {
@@ -39,6 +41,7 @@ contract Crowdsale {
     }
 
     function buyTokens(uint256 _amount) public payable {
+        require(isInWhiteList(msg.sender));
         require(msg.value == (_amount / 1e18) * price);
         require(token.balanceOf(address(this)) >= _amount);
         require(token.transfer(msg.sender, _amount));
@@ -50,6 +53,19 @@ contract Crowdsale {
 
     function setPrice(uint256 _price) public onlyOwner {
         price = _price;
+    }
+
+    function addToWhiteList(address _address_to_whitelist) public onlyOwner {
+        white_list.push(_address_to_whitelist);
+    }
+
+    function isInWhiteList(address _address) public view returns (bool) {
+        for (uint i = 0; i < white_list.length; i++) {
+            if (white_list[i] == _address) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Finalize Sale
